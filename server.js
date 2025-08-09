@@ -14,10 +14,57 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 
 const app = express();
+// ---- added: payments & AI support ----
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const Stripe = require('stripe');
+const OpenAI = require('openai');
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// allow your front-ends
+const allowed = (process.env.ALLOWED_ORIGIN || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowed.length === 0 || allowed.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
+
 const PORT = process.env.PORT || 3000;
 
 // Configure middleware to parse JSON bodies
+// ---- added: Stripe webhook (requires RAW body) ----
+app.post('/api/stripe/webhook', bodyParser.raw({ type: 'application/json' }), (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  try {
+    const event = stripe.webhooks.constructEvent(
+      req.body,                         // RAW body here
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET // set in Render
+    );
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      // TODO: mark user premium / save subscription in your DB
+      // console.log('Checkout completed', session.id);
+    }
+
+    res.json({ received: true });
+  } catch (err) {
+    console.error('Webhook verify failed:', err.message);
+    res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+});
+
 app.use(express.json());
+
 
 // Connect to MongoDB
 mongoose
@@ -86,8 +133,58 @@ app.post('/figma-webhook', async (req, res) => {
 // Health check endpoint
 app.get('/', (req, res) => {
   res.send('Figma webhook backend is running');
+
 });
 
+// ---- added: create a Checkout Session ----
+app.post('/api/stripe/create-checkout-session', async (req, res) => {
+  try {
+    const {
+      priceId,
+      mode = 'subscription',
+      successPath = '/success',
+      cancelPath = '/cancel',
+      referralCode,
+      trialDays
+    } = req.body;
+
+    // optional referral-based trial
+    const subscription_data = { metadata: { referralCode: referralCode || '' } };
+    const td = Number(trialDays);
+    if (!isNaN(td) && td > 0) subscription_data.trial_period_days = td;
+
+    const session = await stripe.checkout.sessions.create({
+      mode,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${process.env.APP_URL}${successPath}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.APP_URL}${cancelPath}`,
+      subscription_data
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('create-checkout-session error', err);
+    res.status(500).json({ error: 'Unable to create session' });
+  }
+});
+
+// ---- added: AI tutor proxy to OpenAI ----
+app.post('/api/ai/chat', async (req, res) => {
+  try {
+    const { messages } = req.body; // [{role:'user', content:'...'}]
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages
+    });
+    res.json(completion.choices[0].message);
+  } catch (err) {
+    console.error('AI chat error:', err);
+    res.status(500).json({ error: 'AI error' });
+  }
+});
+
+// (LAST) start server
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
+
