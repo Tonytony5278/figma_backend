@@ -150,29 +150,57 @@ app.get('/', (req, res) => {
 });
 
 // ---- added: create a Checkout Session ----
+// ---- updated: create a Checkout Session (email + referral-aware) ----
 app.post('/api/stripe/create-checkout-session', async (req, res) => {
   try {
     const {
       priceId,
+      email,                                 // <-- NEW: customer email from the client
       mode = 'subscription',
       successPath = '/success',
       cancelPath = '/cancel',
-      referralCode,
-      trialDays
+      referralCode,                          // optional: code from the referrer
+      trialDays                              // optional: override trial days
     } = req.body;
 
-    // optional referral-based trial
-    const subscription_data = { metadata: { referralCode: referralCode || '' } };
-    const td = Number(trialDays);
-    if (!isNaN(td) && td > 0) subscription_data.trial_period_days = td;
+    // If you don't have user auth yet, default to your email for testing:
+    const customerEmail = email || 'nurseaiteam@gmail.com';
+
+    // Metadata we want on the session/subscription
+    const meta = {
+      referralCode: referralCode || '',
+      appUserEmail: customerEmail
+    };
+
+    // Subscription data (for trials + metadata)
+    const subscription_data = { metadata: meta };
+
+    // Referral trial: if there's a referralCode and no explicit trialDays, give 7 days
+    let trial = Number(trialDays);
+    if (isNaN(trial)) {
+      trial = referralCode ? 7 : 0;
+    }
+    if (trial > 0) {
+      subscription_data.trial_period_days = trial;
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode,
       line_items: [{ price: priceId, quantity: 1 }],
+      customer_email: customerEmail,                         // <-- attach email
       success_url: `${process.env.APP_URL}${successPath}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.APP_URL}${cancelPath}`,
-      subscription_data
+      subscription_data,
+      metadata: meta
     });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('create-checkout-session error', err);
+    res.status(500).json({ error: 'Unable to create session' });
+  }
+});
+
 
     res.json({ url: session.url });
   } catch (err) {
