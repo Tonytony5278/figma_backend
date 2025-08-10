@@ -91,6 +91,19 @@ const figmaEventSchema = new mongoose.Schema(
   }
 );
 const FigmaEvent = mongoose.model('FigmaEvent', figmaEventSchema);
+// --- Add: User model for Stripe + referrals ---
+const userSchema = new mongoose.Schema({
+  email: { type: String, index: true, unique: true, sparse: true },
+  stripeCustomerId: String,
+  subscriptionStatus: { type: String, default: 'free' }, // 'free' | 'active' | 'trialing' | 'canceled' | etc.
+  currentPeriodEnd: Date,
+  referralCode: { type: String, index: true },           // this user's own code they share
+  referredBy: String,                                     // code used by this user (who referred them)
+  premiumUntil: Date                                      // manual premium (e.g., a 1-week reward)
+}, { collection: 'users' });
+
+const User = mongoose.model('User', userSchema);
+
 
 // Helper to verify Figma webhook signature
 function verifySignature(req) {
