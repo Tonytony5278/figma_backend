@@ -187,4 +187,25 @@ app.post('/api/ai/chat', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
+// Create Customer Portal session
+app.post('/api/stripe/create-portal-session', async (req, res) => {
+  try {
+    const { email, returnUrl } = req.body;
+    // TODO: replace with your real auth lookup
+    const user = await User.findOne({ email });
+    if (!user?.stripeCustomerId) {
+      return res.status(400).json({ error: 'No Stripe customer on file' });
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: user.stripeCustomerId,
+      return_url: returnUrl || `${process.env.APP_URL}/account`,
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('create-portal-session error', err);
+    res.status(500).json({ error: 'Unable to create portal session' });
+  }
+});
 
