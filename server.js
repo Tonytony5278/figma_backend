@@ -57,7 +57,7 @@ app.post('/api/stripe/webhook', bodyParser.raw({ type: 'application/json' }), (r
     }
 
     res.json({ received: true });
-  } catch (err) {
+  } catch(err) {
     console.error('Webhook verify failed:', err.message);
     res.status(400).send(`Webhook Error: ${err.message}`);
   }
