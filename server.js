@@ -237,4 +237,6 @@ app.post('/api/stripe/create-portal-session', async (req, res) => {
     res.status(500).json({ error: 'Unable to create portal session' });
   }
 });
-
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
