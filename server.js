@@ -137,7 +137,7 @@ app.post('/figma-webhook', async (req, res) => {
     });
     // Respond with 200 to acknowledge receipt
     res.status(200).json({ ok: true });
-  } catch (err) {
+  } catch(err) {
     console.error('Error saving event:', err);
     res.status(500).json({ error: 'Failed to process event' });
   }
@@ -195,7 +195,7 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
     });
 
     res.json({ url: session.url });
-  } catch (err) {
+  } catch(err) {
     console.error('create-checkout-session error', err);
     res.status(500).json({ error: 'Unable to create session' });
   }
@@ -218,7 +218,7 @@ app.post('/api/ai/chat', async (req, res) => {
       messages
     });
     res.json(completion.choices[0].message);
-  } catch (err) {
+  } catch(err) {
     console.error('AI chat error:', err);
     res.status(500).json({ error: 'AI error' });
   }
@@ -244,7 +244,7 @@ app.post('/api/stripe/create-portal-session', async (req, res) => {
     });
 
     res.json({ url: session.url });
-  } catch (err) {
+  } catch(err) {
     console.error('create-portal-session error', err);
     res.status(500).json({ error: 'Unable to create portal session' });
   }
