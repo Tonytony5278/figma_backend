@@ -203,7 +203,7 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
 
 
     res.json({ url: session.url });
-  } catch (err) {
+  catch (err) {
     console.error('create-checkout-session error', err);
     res.status(500).json({ error: 'Unable to create session' });
   }
